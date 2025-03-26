@@ -1,24 +1,24 @@
 ##### Available defines for CJSON_CFLAGS #####
 ##
 ## USE_INTERNAL_ISINF:      Workaround for Solaris platforms missing isinf().
+## DISABLE_CJSON_GLOBAL:    Do not store module is "cjson" global.
 ## DISABLE_INVALID_NUMBERS: Permanently disable invalid JSON numbers:
 ##                          NaN, Infinity, hex.
 ##
 ## Optional built-in number conversion uses the following defines:
-## USE_INTERNAL_FPCONV:     Use builtin strtod/dtoa for numeric conversions.
+## USE_INTERNAL_DTOA:       Use builtin strtod/dtoa for numeric conversions.
 ## IEEE_BIG_ENDIAN:         Required on big endian architectures.
-## MULTIPLE_THREADS:        Must be set when Lua CJSON may be used in a
-##                          multi-threaded application. Requries _pthreads_.
 
 ##### Build defaults #####
-LUA_VERSION =       5.3
+LUA_VERSION =       5.1
 TARGET =            cjson.so
 PREFIX =            /usr/local
 #CFLAGS =            -g -Wall -pedantic -fno-inline
 CFLAGS =            -O3 -Wall -pedantic -DNDEBUG
 CJSON_CFLAGS =      -fpic
 CJSON_LDFLAGS =     -shared
-LUA_INCLUDE_DIR =   $(PREFIX)/include
+LUA_INCLUDE_DIR = $(INCLUDE_LUA)
+LUA_INCLUDE_DIR ?= $(PREFIX)/include
 LUA_CMODULE_DIR =   $(PREFIX)/lib/lua/$(LUA_VERSION)
 LUA_MODULE_DIR =    $(PREFIX)/share/lua/$(LUA_VERSION)
 LUA_BIN_DIR =       $(PREFIX)/bin
@@ -40,8 +40,6 @@ LUA_BIN_DIR =       $(PREFIX)/bin
 #CJSON_LDFLAGS =     -bundle -undefined dynamic_lookup
 
 ## Solaris
-#PREFIX =            /home/user/opt
-#CC =                gcc
 #CJSON_CFLAGS =      -fpic -DUSE_INTERNAL_ISINF
 
 ## Windows (MinGW)
@@ -51,14 +49,11 @@ LUA_BIN_DIR =       $(PREFIX)/bin
 #CJSON_LDFLAGS =     -shared -L$(PREFIX)/lib -llua51
 #LUA_BIN_SUFFIX =    .lua
 
-##### Number conversion configuration #####
+##### Use built in number conversion (optional) #####
 
-## Use Libc support for number conversion (default)
-FPCONV_OBJS =       fpconv.o
-
-## Use built in number conversion
+## Enable built in number conversion
 #FPCONV_OBJS =       g_fmt.o dtoa.o
-#CJSON_CFLAGS +=     -DUSE_INTERNAL_FPCONV
+#CJSON_CFLAGS +=     -DUSE_INTERNAL_DTOA
 
 ## Compile built in number conversion for big endian architectures
 #CJSON_CFLAGS +=     -DIEEE_BIG_ENDIAN
@@ -77,32 +72,24 @@ TEST_FILES =        README bench.lua genutf8.pl test.lua octets-escaped.dat \
 DATAPERM =          644
 EXECPERM =          755
 
-ASCIIDOC =          asciidoc
-
 BUILD_CFLAGS =      -I$(LUA_INCLUDE_DIR) $(CJSON_CFLAGS)
-OBJS =              lua_cjson.o strbuf.o $(FPCONV_OBJS)
+FPCONV_OBJS ?=      fpconv.o
+OBJS :=             lua_cjson.o strbuf.o $(FPCONV_OBJS)
 
 .PHONY: all clean install install-extra doc
 
-.SUFFIXES: .html .adoc
+all: $(TARGET)
+
+doc: manual.html
 
 .c.o:
 	$(CC) -c $(CFLAGS) $(CPPFLAGS) $(BUILD_CFLAGS) -o $@ $<
-
-.adoc.html:
-	$(ASCIIDOC) -n -a toc $<
-
-all: $(TARGET)
-
-doc: manual.html performance.html
 
 $(TARGET): $(OBJS)
 	$(CC) $(LDFLAGS) $(CJSON_LDFLAGS) -o $@ $(OBJS)
 
 install: $(TARGET)
-	mkdir -p $(DESTDIR)/$(LUA_CMODULE_DIR)
-	cp $(TARGET) $(DESTDIR)/$(LUA_CMODULE_DIR)
-	chmod $(EXECPERM) $(DESTDIR)/$(LUA_CMODULE_DIR)/$(TARGET)
+	cp $(TARGET) $(ROOT)/luaclib/
 
 install-extra:
 	mkdir -p $(DESTDIR)/$(LUA_MODULE_DIR)/cjson/tests \
@@ -115,6 +102,9 @@ install-extra:
 	chmod $(EXECPERM) $(DESTDIR)/$(LUA_BIN_DIR)/json2lua$(LUA_BIN_SUFFIX)
 	cd tests; cp $(TEST_FILES) $(DESTDIR)/$(LUA_MODULE_DIR)/cjson/tests
 	cd tests; chmod $(DATAPERM) $(TEST_FILES); chmod $(EXECPERM) *.lua *.pl
+
+manual.html: manual.txt
+	asciidoc -n -a toc manual.txt
 
 clean:
 	rm -f *.o $(TARGET)
